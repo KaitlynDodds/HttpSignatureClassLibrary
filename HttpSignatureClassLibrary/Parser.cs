@@ -79,8 +79,6 @@ namespace http.signature
                         if (!hValues.Contains(REQ_HEADER)) throw new ArgumentException("Invalid Authentication Header");
                     }
                     signatureValues.Add(key, new List<string>(hValues));
-                    signatureValues[key].Remove("(request-target)");
-
                 }
                 else
                 {

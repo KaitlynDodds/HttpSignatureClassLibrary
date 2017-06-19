@@ -11,7 +11,7 @@ namespace http.signature
     {
         private Signature Signature;
 
-        private string[] REQUIRED_HEADERS = { "date", "host" };
+        private string[] REQUIRED_HEADERS = { "date", "digest" };
 
         public Signer(Signature signature)
         {

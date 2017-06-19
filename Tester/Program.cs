@@ -45,26 +45,16 @@ namespace Tester
 
             // Step 2) Verify Signature 
 
-            // a) Parse HttpResponseMessage to generate a Request object 
-            Request request = Parser.ParseRequestFromHttpRequestMessage(req);
-
-            // b) Parse Authorization header 
-            Dictionary<string, List<string>> parsedAuthenticationHeaders = Parser.ParseAuthorizationHeader(req.Headers.Authorization);
-            // keyId
-            string keyId = parsedAuthenticationHeaders["keyId"][0];
-            // algorithm
-            string algorithm = parsedAuthenticationHeaders["algorithm"][0];
-            // Signature (encoded value) 
-            string requestSignature = parsedAuthenticationHeaders["signature"][0];
 
             // c) Create new Signature object with keyId, algorithm and Request object
-            Signature signature = new Signature(keyId, algorithm, request);
+            Signature signature = Signature.FromHttpRequest(req);
+            string oldSig = signature.EncodedSignature;
 
             // d) Create new Signer object with Signature object
             Signer signer = new Signer(signature);
 
             // e) Call signer.Verify() given the encoded signature you received in the original HTTP request 
-            if (signer.Verify(requestSignature))
+            if (signer.Verify(oldSig))
             {
                 // if true, signatures match, send back 200 OK
                 //return req.CreateResponse(HttpStatusCode.OK, "Authorization Attempt Successful");
@@ -87,7 +77,6 @@ namespace Tester
             string keyId = "hmac-key-1";
             string algorithm = "hmac-sha256";
             string address = "http://localhost:7071/api/HttpTriggerCSharp";
-            HttpClient client = new HttpClient();
             HttpRequestMessage httprequest = new HttpRequestMessage()
             {
                 RequestUri = new Uri(address),
@@ -95,20 +84,17 @@ namespace Tester
             };
 
             // add signature to Authorization header
-            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-            client.DefaultRequestHeaders.Date = DateTime.Today;
-            client.DefaultRequestHeaders.Add("Digest", "SHA-256=X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=");
-            client.DefaultRequestHeaders.Host = "localhost:7071";
+            httprequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            httprequest.Headers.Date = DateTime.Today;
+            httprequest.Headers.Add("Digest", "SHA-256=X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=");
 
-            Request request = new Request(httprequest, client);
-
-            Signature signature = new Signature(keyId, algorithm, request);
+            Signature signature = Signature.FromHttpRequest(httprequest, keyId, algorithm);
 
             Signer signer = new Signer(signature);
 
             signer.Sign();
 
-            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Signature", signature.ToString());
+            httprequest.Headers.Authorization = new AuthenticationHeaderValue("Signature", signature.ToString());
 
             Console.WriteLine("Signed Signature:\n");
             Console.WriteLine(signature.ToString());

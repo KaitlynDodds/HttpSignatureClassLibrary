@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -40,7 +41,62 @@ namespace http.signature
         public string EncodedSignature { get; set; }
 
         public Request Request { get; private set; }    // represents HTTP request that will be used to generate the signature 
-        
+
+        public static Signature FromHttpRequest(HttpRequestMessage httpRequest)
+        {
+
+            string method = httpRequest.Method.ToString();
+            string path = httpRequest.RequestUri.ToString();
+
+            if (httpRequest.Headers.Authorization == null)
+            {
+                // throw invalid HTTPRequestMessage 
+            }
+
+            Dictionary<string, List<string>> signatureValues = Parser.ParseSignatureString(httpRequest.Headers.Authorization.Parameter);
+
+            string keyId = signatureValues["keyId"][0];
+            string algorithm = signatureValues["algorithm"][0];
+            List<string> orderedHeaders = signatureValues["headers"];
+            string signature = signatureValues["signature"][0];
+            Dictionary<string, List<string>> headers = new Dictionary<string, List<string>>();
+
+            HttpRequestHeaders httpHeaders = httpRequest.Headers;
+            foreach (var httpHeader in httpHeaders)
+            {
+                if (orderedHeaders.Contains(httpHeader.Key.ToLower()))
+                {
+                    headers.Add(httpHeader.Key, new List<string>(httpHeader.Value));
+                }
+            }
+            
+            return new Signature(keyId, algorithm, new Request(method, path, headers, orderedHeaders), signature);
+        }
+
+        public static Signature FromHttpRequest(HttpRequestMessage httpRequest, string keyId, string algorithm)
+        {
+            string method = httpRequest.Method.ToString();
+            string path = httpRequest.RequestUri.ToString();
+
+            List<string> orderedHeaders = new List<string>();
+            Dictionary<string, List<string>> headersToUse = new Dictionary<string, List<string>>();
+
+            foreach (var httpHeader in httpRequest.Headers)
+            {
+                orderedHeaders.Add(httpHeader.Key);
+                headersToUse.Add(httpHeader.Key, new List<string>(httpHeader.Value));
+            }
+
+            return new Signature(keyId, algorithm, new Request(method, path, headersToUse, orderedHeaders));
+        }
+
+        public Signature(string keyId, string algorithm, Request request, string sig)
+        {
+            EncodedSignature = sig;
+
+            SetupSignature(keyId, GetAlgorithm(algorithm), request);
+        }
+
         public Signature(string keyId, string algorithm, Request request)
         {
             SetupSignature(keyId, GetAlgorithm(algorithm), request);
@@ -94,8 +150,7 @@ namespace http.signature
             return
                 "keyId=\"" + KeyId + "\"," +
                 "algorithm=\"" + Algorithm.CommonName + "\"," +
-                "headers=\"" + "(request-target) "
-                + JoinHeaders() + "\"," +
+                "headers=\"" + JoinHeaders() + "\"," +
                 "signature=\"" + EncodedSignature + "\"";
         }
 
@@ -103,51 +158,16 @@ namespace http.signature
         {
             /*
              Resembles:
-             	Signature "keyId=\"Test\",algorithm=\"rsa-sha256\",headers=\"(request-target) host date digest\",signature=\"KcLSABBj/m3v2DhxiCKJmzYJvnx74tDO1SaURD8Dr8XpugN5wpy8iBVJtpkHUIp4qBYpzx2QvD16t8X0BUMiKc53Age+baQFWwb2iYYJzvuUL+krrl/Q7H6fPBADBsHqEZ7IE8rR0Ys3lb7J5A6VB9J/4yVTRiBcxTypW/mpr5w=\""
+             	Signature "keyId=\"Test\",algorithm=\"rsa-sha256\",headers=\"date digest\",signature=\"KcLSABBj/m3v2DhxiCKJmzYJvnx74tDO1SaURD8Dr8XpugN5wpy8iBVJtpkHUIp4qBYpzx2QvD16t8X0BUMiKc53Age+baQFWwb2iYYJzvuUL+krrl/Q7H6fPBADBsHqEZ7IE8rR0Ys3lb7J5A6VB9J/4yVTRiBcxTypW/mpr5w=\""
             */
 
             // scheme must be 'Signature'
             if (!scheme.Equals("Signature")) return false;
 
             // correct paramter values must be included, valid
-            if (!IsValidParamter(parameter)) return false;
-
+            // FIXME: kzd -> finish
             return true;
         }
-
-        private static bool IsValidParamter(string parameter)
-        {
-            // TODO: REFACTOR!! DRY coding (copied code in Parse.ParseAuthenticationHeader) 
-
-            // MUST include keyId, algorithm, headers, signature 
-            string[] VALID_KEYS = new string[] { "keyId", "algorithm", "headers", "signature" };
-            // MUST include required headers 
-            string[] REQUIRED_HEADERS = new string[] { "(request-target)", "date", "digest" };
-
-            // get all key="value" pairs from parameter
-            string[] pairs = parameter.Split(',');
-            foreach (var pair in pairs)
-            {
-                // extract key
-                string key = Regex.Match(pair, @"\b[a-zA-Z]+\b").ToString();
-                if (!VALID_KEYS.Contains(key)) return false;  // not a valid key, not a valid signature 
-
-                // extract value 
-                string[] split = pair.Split('"');  // splits on quotes, second value in list will be the value we want 
-                string value = split[1];  // should return the unquoted, unaltered value passed into the header for this key value pair 
-
-                // check that key 'headers' contains required header values 
-                if (key.Equals("headers"))
-                {
-                    string[] hValues = value.Split(' ');
-                    foreach (var REQ_HEADER in REQUIRED_HEADERS)
-                    {
-                        if (!hValues.Contains(REQ_HEADER)) return false; 
-                    }
-                }
-            }
-            
-            return true;
-        }
+        
     }
 }
