@@ -58,7 +58,7 @@ namespace http.signature
             string method = httpRequest.Method.ToString();
             string path = httpRequest.RequestUri.ToString();
 
-            if (httpRequest.Headers.Authorization == null)
+            if (httpRequest.Headers.Authorization == null || Parser.IsValidAuthenticationHeader(httpRequest.Headers.Authorization))
             {
                 throw new ArgumentNullException("Invalid HttpRequestMessage, HttpRequestMessage should include valid Authorization header.");
             }
@@ -66,7 +66,7 @@ namespace http.signature
             try
             {
                 // ParseAuthorizationHeader returns dic with Authorization header values that should be used to create new Signature 
-                Dictionary<string, List<string>> signatureValues = Parser.ParseAuthorizationHeader(httpRequest.Headers.Authorization);
+                Dictionary<string, List<string>> signatureValues = Parser.ParseSignatureString(httpRequest.Headers.Authorization.Parameter);
 
                 keyId = signatureValues["keyId"][0];
                 algorithm = signatureValues["algorithm"][0];
@@ -188,21 +188,49 @@ namespace http.signature
                 "headers=\"" + JoinHeaders() + "\"," +
                 "signature=\"" + EncodedSignature + "\"";
         }
+        
+        public static bool IsValidSignatureString(string parameter)
+        {
+            // correct paramter values must be included, valid
+            Dictionary<string, List<string>> parsedSignatureValues = Parser.ParseSignatureString(parameter);
+            return IsValidSignatureString(parsedSignatureValues);
+        }
 
-        public static bool IsValidSignature(string scheme, string parameter)
+        /*
+        Checks that the expected/required values have been included and correctly parsed from
+        the Signature string 
+        */
+        public static bool IsValidSignatureString(Dictionary<string, List<string>> signatureValues)
         {
             /*
              Resembles:
              	Signature "keyId=\"Test\",algorithm=\"rsa-sha256\",headers=\"date digest\",signature=\"KcLSABBj/m3v2DhxiCKJmzYJvnx74tDO1SaURD8Dr8XpugN5wpy8iBVJtpkHUIp4qBYpzx2QvD16t8X0BUMiKc53Age+baQFWwb2iYYJzvuUL+krrl/Q7H6fPBADBsHqEZ7IE8rR0Ys3lb7J5A6VB9J/4yVTRiBcxTypW/mpr5w=\""
             */
+            
+            if (signatureValues["keyId"] == null || String.IsNullOrEmpty(signatureValues["keyId"][0].Trim()))
+            {
+                // invalid keyId
+                return false;
+            }
+            if (signatureValues["algorithm"] == null || String.IsNullOrEmpty(signatureValues["algorithm"][0].Trim()) || GetAlgorithm(signatureValues["algorithm"][0]) == null)
+            {
+                // invalid algorithm 
+                return false;
+            }
+            if (signatureValues["headers"] == null || signatureValues["headers"].Count == 0)
+            {
+                // invalid headers
+                return false;
+            }
+            if (signatureValues["signature"] == null || String.IsNullOrEmpty(signatureValues["signature"][0]))
+            {
+                // invalid signature value
+                return false;
+            }
 
-            // scheme must be 'Signature'
-            if (!scheme.Equals("Signature")) return false;
-
-            // correct paramter values must be included, valid
-            // FIXME: kzd -> finish
             return true;
+
         }
-        
+
     }
 }
