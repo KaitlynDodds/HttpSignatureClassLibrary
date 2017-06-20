@@ -44,33 +44,55 @@ namespace http.signature
 
         public static Signature FromHttpRequest(HttpRequestMessage httpRequest)
         {
+            string keyId = "";          // keyId value passed w/ Signature Authorization
+            string algorithm = "";      // algorithm value passed w/ Signature Authorization
+            string signature = "";      // original hashed signature value that was passed with Authorization header 
+
+            // headers that were used to hash Signature, should use these headers to test hash 
+            List<string> orderedHeaders = new List<string>(); 
+            
+            // store headers and header values that should be used to create Request object 
+            Dictionary<string, List<string>> headersToUse = new Dictionary<string, List<string>>();
+
 
             string method = httpRequest.Method.ToString();
             string path = httpRequest.RequestUri.ToString();
 
             if (httpRequest.Headers.Authorization == null)
             {
-                // throw invalid HTTPRequestMessage 
+                throw new ArgumentNullException("Invalid HttpRequestMessage, HttpRequestMessage should include valid Authorization header.");
             }
 
-            Dictionary<string, List<string>> signatureValues = Parser.ParseSignatureString(httpRequest.Headers.Authorization.Parameter);
-
-            string keyId = signatureValues["keyId"][0];
-            string algorithm = signatureValues["algorithm"][0];
-            List<string> orderedHeaders = signatureValues["headers"];
-            string signature = signatureValues["signature"][0];
-            Dictionary<string, List<string>> headers = new Dictionary<string, List<string>>();
-
-            HttpRequestHeaders httpHeaders = httpRequest.Headers;
-            foreach (var httpHeader in httpHeaders)
+            try
             {
-                if (orderedHeaders.Contains(httpHeader.Key.ToLower()))
+                // ParseAuthorizationHeader returns dic with Authorization header values that should be used to create new Signature 
+                Dictionary<string, List<string>> signatureValues = Parser.ParseAuthorizationHeader(httpRequest.Headers.Authorization);
+
+                keyId = signatureValues["keyId"][0];
+                algorithm = signatureValues["algorithm"][0];
+                orderedHeaders = signatureValues["headers"];
+                signature = signatureValues["signature"][0];
+
+                
+                // loop through httprequestmessage headers
+                foreach (var httpHeader in httpRequest.Headers)
                 {
-                    headers.Add(httpHeader.Key, new List<string>(httpHeader.Value));
+                    // if orderedHeaders (headers used to hash original signature) contains that httpheader
+                    if (orderedHeaders.Contains(httpHeader.Key.ToLower()))
+                    {
+                        // add that httpheader and values to headersToUse 
+                        headersToUse.Add(httpHeader.Key, new List<string>(httpHeader.Value));
+                    }
                 }
             }
-            
-            return new Signature(keyId, algorithm, new Request(method, path, headers, orderedHeaders), signature);
+            catch (Exception ex)
+            {
+                // something went wrong while parseing values, unable to create Signature 
+                throw new Exception("Invalid Signature Creation", ex);
+            }
+
+            // return new Signature object
+            return new Signature(keyId, algorithm, new Request(method, path, headersToUse, orderedHeaders), signature);
         }
 
         public static Signature FromHttpRequest(HttpRequestMessage httpRequest, string keyId, string algorithm)
@@ -78,20 +100,34 @@ namespace http.signature
             string method = httpRequest.Method.ToString();
             string path = httpRequest.RequestUri.ToString();
 
+            // headers that should be used to create hashed Signature string (must be listed in order they are used to hash the Signature) 
             List<string> orderedHeaders = new List<string>();
+            // headers and values that should be used to create hashed Signature string (dictionary does not guarantee order) 
             Dictionary<string, List<string>> headersToUse = new Dictionary<string, List<string>>();
 
-            foreach (var httpHeader in httpRequest.Headers)
+            try
             {
-                orderedHeaders.Add(httpHeader.Key);
-                headersToUse.Add(httpHeader.Key, new List<string>(httpHeader.Value));
+                // loop through each header in httprequestmessage
+                foreach (var httpHeader in httpRequest.Headers)
+                {
+                    // add header to orderedHeaders
+                    orderedHeaders.Add(httpHeader.Key);
+                    // add header and values
+                    headersToUse.Add(httpHeader.Key, new List<string>(httpHeader.Value));
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Invalid Signature Creation", ex);
             }
 
+            // return new Signature 
             return new Signature(keyId, algorithm, new Request(method, path, headersToUse, orderedHeaders));
         }
 
         public Signature(string keyId, string algorithm, Request request, string sig)
         {
+            // if Signature string already exists 
             EncodedSignature = sig;
 
             SetupSignature(keyId, GetAlgorithm(algorithm), request);
@@ -110,7 +146,6 @@ namespace http.signature
 
         private void SetupSignature(string keyid, Algorithm algorithm, Request request)
         {
-
             // keyid cannot be null or empty
             if (String.IsNullOrEmpty(keyid.Trim())) throw new ArgumentException("KeyId cannot be null or empty");
             KeyId = keyid.Trim().ToLower();
@@ -143,7 +178,7 @@ namespace http.signature
 
         /*
          Returns fully formatted Authorization header
-         **Should be used as the value of the Authorization header for the request 
+         **Should be used as the parameter value of the Authorization header for the request 
         */
         public override string ToString()
         {
