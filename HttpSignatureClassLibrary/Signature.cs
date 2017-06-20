@@ -1,4 +1,5 @@
-﻿using System;
+﻿using http.signature.Exceptions;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
@@ -53,42 +54,36 @@ namespace http.signature
             
             // store headers and header values that should be used to create Request object 
             Dictionary<string, List<string>> headersToUse = new Dictionary<string, List<string>>();
-
-
+            
             string method = httpRequest.Method.ToString();
             string path = httpRequest.RequestUri.ToString();
 
-            if (httpRequest.Headers.Authorization == null || Parser.IsValidAuthenticationHeader(httpRequest.Headers.Authorization))
+            if (httpRequest.Headers.Authorization == null)
             {
-                throw new ArgumentNullException("Invalid HttpRequestMessage, HttpRequestMessage should include valid Authorization header.");
+                throw new ArgumentNullException("Authorization Header cannot be null");
             }
 
-            try
+            // check that Authorization header is valid
+            Parser.CheckValidAuthenticationHeader(httpRequest.Headers.Authorization);
+
+            // ParseAuthorizationHeader returns dic with Authorization header values that should be used to create new Signature 
+            Dictionary<string, List<string>> signatureValues = Parser.ParseSignatureString(httpRequest.Headers.Authorization.Parameter);
+
+            keyId = signatureValues["keyId"][0];
+            algorithm = signatureValues["algorithm"][0];
+            orderedHeaders = signatureValues["headers"];
+            signature = signatureValues["signature"][0];
+
+
+            // loop through httprequestmessage headers
+            foreach (var httpHeader in httpRequest.Headers)
             {
-                // ParseAuthorizationHeader returns dic with Authorization header values that should be used to create new Signature 
-                Dictionary<string, List<string>> signatureValues = Parser.ParseSignatureString(httpRequest.Headers.Authorization.Parameter);
-
-                keyId = signatureValues["keyId"][0];
-                algorithm = signatureValues["algorithm"][0];
-                orderedHeaders = signatureValues["headers"];
-                signature = signatureValues["signature"][0];
-
-                
-                // loop through httprequestmessage headers
-                foreach (var httpHeader in httpRequest.Headers)
+                // if orderedHeaders (headers used to hash original signature) contains that httpheader
+                if (orderedHeaders.Contains(httpHeader.Key.ToLower()))
                 {
-                    // if orderedHeaders (headers used to hash original signature) contains that httpheader
-                    if (orderedHeaders.Contains(httpHeader.Key.ToLower()))
-                    {
-                        // add that httpheader and values to headersToUse 
-                        headersToUse.Add(httpHeader.Key, new List<string>(httpHeader.Value));
-                    }
+                    // add that httpheader and values to headersToUse 
+                    headersToUse.Add(httpHeader.Key, new List<string>(httpHeader.Value));
                 }
-            }
-            catch (Exception ex)
-            {
-                // something went wrong while parseing values, unable to create Signature 
-                throw new Exception("Invalid Signature Creation", ex);
             }
 
             // return new Signature object
@@ -147,7 +142,7 @@ namespace http.signature
         private void SetupSignature(string keyid, Algorithm algorithm, Request request)
         {
             // keyid cannot be null or empty
-            if (String.IsNullOrEmpty(keyid.Trim())) throw new ArgumentException("KeyId cannot be null or empty");
+            if (String.IsNullOrEmpty(keyid.Trim())) throw new ArgumentNullException("KeyId cannot be null or empty");
             KeyId = keyid.Trim().ToLower();
 
             // Algorithm cannot be null
@@ -189,18 +184,18 @@ namespace http.signature
                 "signature=\"" + EncodedSignature + "\"";
         }
         
-        public static bool IsValidSignatureString(string parameter)
+        public static void CheckIsValidSignatureString(string parameter)
         {
             // correct paramter values must be included, valid
             Dictionary<string, List<string>> parsedSignatureValues = Parser.ParseSignatureString(parameter);
-            return IsValidSignatureString(parsedSignatureValues);
+            CheckIsValidSignatureString(parsedSignatureValues);
         }
 
         /*
         Checks that the expected/required values have been included and correctly parsed from
         the Signature string 
         */
-        public static bool IsValidSignatureString(Dictionary<string, List<string>> signatureValues)
+        public static void CheckIsValidSignatureString(Dictionary<string, List<string>> signatureValues)
         {
             /*
              Resembles:
@@ -210,26 +205,24 @@ namespace http.signature
             if (signatureValues["keyId"] == null || String.IsNullOrEmpty(signatureValues["keyId"][0].Trim()))
             {
                 // invalid keyId
-                return false;
+                throw new InvalidSignatureString("'keyId' Cannot be null or empty");
             }
             if (signatureValues["algorithm"] == null || String.IsNullOrEmpty(signatureValues["algorithm"][0].Trim()) || GetAlgorithm(signatureValues["algorithm"][0]) == null)
             {
                 // invalid algorithm 
-                return false;
+                throw new InvalidSignatureString("'algorithm' cannot be null or empty");
             }
             if (signatureValues["headers"] == null || signatureValues["headers"].Count == 0)
             {
                 // invalid headers
-                return false;
+                throw new InvalidSignatureString("'headers' cannot be null or empty");
             }
-            if (signatureValues["signature"] == null || String.IsNullOrEmpty(signatureValues["signature"][0]))
+            if (signatureValues["signature"] == null || String.IsNullOrEmpty(signatureValues["signature"][0].Trim()))
             {
                 // invalid signature value
-                return false;
+                throw new InvalidSignatureString("'signature' cannot be null or empty");
             }
-
-            return true;
-
+            
         }
 
     }

@@ -35,11 +35,11 @@ namespace Tester
             /********************************************************************************************************/
 
             // Step 1) Check that HTTPRequest Message contains Authorization header 
-            if (req.Headers.Authorization == null || Parser.IsValidAuthenticationHeader(req.Headers.Authorization))
+            if (req.Headers.Authorization == null)
             {
                 // send 401 Unauthorized if Request does not contain necessary headers + info
                 // specify which headers are expected in WW-Authenticate header 
-                Console.WriteLine("Authorization Attempt Failed, Invalid Signature");
+                Console.WriteLine("Authorization Attempt Failed, Missing Authorization Header");
             }
 
             // Step 2) Verify Signature 

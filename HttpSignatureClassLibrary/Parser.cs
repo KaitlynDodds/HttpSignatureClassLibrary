@@ -1,4 +1,5 @@
-﻿using System;
+﻿using http.signature.Exceptions;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
@@ -18,21 +19,15 @@ namespace http.signature
         Assesses validity of Signature 
         returns Dictionary with Signature values
         */
-        public static bool IsValidAuthenticationHeader(AuthenticationHeaderValue authentication)
+        public static void CheckValidAuthenticationHeader(AuthenticationHeaderValue authentication)
         {
             // authentication Scheme must be 'Signature'
             if (!authentication.Scheme.Equals("Signature"))
             {
-                return false;
+                throw new InvalidAuthorizationHeader("Authorization header missing 'Signature' scheme.");
             }
 
-            // check that parameter string results in valid Signature 
-            if (Signature.IsValidSignatureString(authentication.Parameter))
-            {
-                return false; 
-            }
-
-            return true;
+            Signature.CheckIsValidSignatureString(authentication.Parameter);
         }
 
         /*
@@ -61,7 +56,7 @@ namespace http.signature
                 // extracts key from key-value pair in string (e.g. keyId, algorithm, signature, headers)
                 string key = Regex.Match(pair, @"\b[a-zA-Z]+\b").ToString();
                 // check that the key is valid 
-                if (!VALID_KEYS.Contains(key)) throw new ArgumentException("Invalid Authentication Header");  // not a valid key, not a valid signature 
+                if (!VALID_KEYS.Contains(key)) throw new InvalidSignatureString("Signature contains invalid Key: " + key);    // not a valid key, not a valid signature 
 
                 // extract value from key-value pair 
                 string[] split = pair.Split('"');  // splits on quotes, second value in list will be the value we want 
@@ -74,7 +69,7 @@ namespace http.signature
                     foreach (var REQ_HEADER in REQUIRED_HEADERS)
                     {
                         // check that each required header is included in 'headers'
-                        if (!hValues.Contains(REQ_HEADER)) throw new ArgumentException("Invalid Authentication Header");
+                        if (!hValues.Contains(REQ_HEADER)) throw new InvalidSignatureString("Signature does not contain required header: " + REQ_HEADER);
                     }
                     // add all 'headers' values to dictionary 
                     signatureValues.Add(key, new List<string>(hValues));
@@ -87,10 +82,7 @@ namespace http.signature
             }
 
             // only want to return signature string we know is valid, otherwise throw error 
-            if (!Signature.IsValidSignatureString(signatureValues))
-            {
-                throw new ArgumentException("Invalid Signature");  // FIXME: kzd-> replace with InvalidSignatureException
-            }
+            Signature.CheckIsValidSignatureString(signatureValues);
 
             return signatureValues;
 
