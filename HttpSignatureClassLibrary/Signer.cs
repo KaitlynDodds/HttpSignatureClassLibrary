@@ -53,7 +53,7 @@ namespace http.signature
             }
             else
             {
-                //throw new invalid request 
+                //TODO: kzd-> throw new invalid request 
                 // send back 401 w/ Authentication header, auth-scheme, auth-param values 
             }
 
