@@ -1,9 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace http.signature
 {
@@ -11,75 +9,75 @@ namespace http.signature
     {
         private Signature Signature;
 
-        private string[] REQUIRED_HEADERS = { "date", "digest" };
-
         public Signer(Signature signature)
         {
             Signature = signature ?? throw new ArgumentNullException("Signature cannot be null");
         }
 
-        public bool Verify(string encodedSignature)
+        /*
+         * Should be run on the server side
+         * 
+         * Checks that the hashed value of Signature matches the unverifiedSignature (a hashed value)
+         * 
+         * returns true if hashed values match
+         * return false if hashed values do not match 
+         */
+        public bool Verify(string unverifiedSignature)
         {
-            // encodedSignature is signature that was received in HTTP Authorization header
+            // run sign to generate newly Signed signature 
+            Sign();
 
-            // run sign on signature, compare newly generated signature with encodedSignature
-            string newEncodedSignature = Sign().EncodedSignature;
-
-            // if they match, the data was not tampered with, if they are different, data integrity breached 
-            if (String.Equals(newEncodedSignature, encodedSignature))
+            if (String.Equals(Signature.EncodedSignature, unverifiedSignature))
             {
+                // if they match, the data was not tampered with
                 return true;
             }
             else
             {
+                // if they are different, data integrity breached
                 return false;
             }
         }
 
-        public Signature Sign()
+        /*
+         * Use to Sign the Signature instance 
+         * 
+         * uses Signature data to generate signature string, which is then
+         * hashed using the hashing algorithm specified by the Signature,
+         * hashed values is base64 encoded and assigned to the Signature
+         * instances' EncodedSignature property 
+         * 
+         */
+        public void Sign()
         {
-            // minimum data to sign 
-            // (request-header) date host 
-            if (PassMinimumDataCheck(Signature.Request.Headers))
-            {
-                // Step 1: Signature String Construction
-                string signatureString = generateSignatureString();
+            // Step 1: Signature String Construction
+            string signatureString = generateSignatureString();
 
-                // Step 2: generate digital string 
-                string digitalString = generateDigitalString(Signature.Algorithm, Signature.KeyId, signatureString);    // digital signature takes for of Base64(HMAC-SHA256(signatureString))
+            // Step 2: generate digital string 
+            string digitalString = generateDigitalString(signatureString); 
 
-                // assign digitalString to signature field of Signature
-                Signature.EncodedSignature = digitalString;
-            }
-            else
-            {
-                //TODO: kzd-> throw new invalid request 
-                // send back 401 w/ Authentication header, auth-scheme, auth-param values 
-            }
-
-            // signature has now been signed
-            return Signature;
+            // assign digitalString to signature field of Signature
+            Signature.EncodedSignature = digitalString;
+           
         }
 
-        private bool PassMinimumDataCheck(Dictionary<string, List<string>> headers)
-        {
-            foreach (var reqHeader in REQUIRED_HEADERS)
-            {
-                if (!headers.ContainsKey(reqHeader)) return false;
-            }
-            return true;
-        }
-
-        private string generateDigitalString(Algorithm algorithm, string keyId, string signatureString)
+        /*
+         * Determines which algorithm to use to sign the signature string
+         * 
+         * uses algorithm to perform signing (base64 encoded hash value)
+         * 
+         * returns digitalstring that holds base64 encoded hash of signature string 
+         */
+        private string generateDigitalString(string signatureString)
         {
             string digitalString;
 
             // determine which algorithm you should be using 
-            switch (algorithm.CommonName)
+            switch (Signature.Algorithm.CommonName)
             {
                 case "hmac-sha256":
-                    // test w/ HMAC-SHA256 algorithm 
-                    digitalString = SignDigitalStringHMAC256(keyId, signatureString);
+                    // only available option at the moment 
+                    digitalString = SignDigitalStringHMAC256(signatureString);
                     break;
                 default:
                     digitalString = null;
@@ -90,10 +88,18 @@ namespace http.signature
             return digitalString;
         }
 
-        private string SignDigitalStringHMAC256(string keyId, string signatureString)
+        /*
+         * Does actual encryption of signature string using the keyId and algorithm
+         * specified in the Signature instance 
+         * 
+         * Base64(HMAC-SHA256(signatureString))
+         * 
+         * returns base64 encoded value of hashed signature string (using HMAC-SHA256 hashing algorithm) 
+         */
+        private string SignDigitalStringHMAC256(string signatureString)
         {
-
             // FIXME: For now, hardcode key that should be used to hash HMAC algorithm 
+            /* string keyId = GoGetKeyToUseBasedOnKeyId(Signature.KeyId) */
             string HMAC_KEY = "Feg20ShPuW9rdxV12e20nkoKNXI=";
 
             // new hmac instance to work with 
@@ -101,6 +107,7 @@ namespace http.signature
 
             // need byte value of signatureString
             var signatureStringBytes = Encoding.UTF8.GetBytes(signatureString);
+
             // compute hash of signatureString 
             var hashValue = hmac.ComputeHash(signatureStringBytes);
 
@@ -108,17 +115,15 @@ namespace http.signature
             return Convert.ToBase64String(hashValue);
         }
 
+        /*
+         * Formats Signature string in preparation for hashing the Signature
+         * returns formatted list of headers and values 
+         * 
+         * header: value\nheader: value\header: value
+         * 
+         */
         private string generateSignatureString()
         {
-            /*
-             Response should resemble:
-             (request-target): get /foo\n
-             host: example.org\n
-             date: ***\n
-             digest: ***\n
-             content-length: 18
-             */
-
             string signatureString = "";
             // add each header and value in the order they appear in the HTTP request 
             foreach (string header in Signature.Request.OrderedHeaders)
@@ -157,7 +162,6 @@ namespace http.signature
 
         private string NormalizeString(string value)
         {
-            // FIXME: what does it mean to normalize?
             if (String.IsNullOrEmpty(value.Trim())) throw new ArgumentException("String value cannot be null or empty.");
             return value.ToLower();
         }
