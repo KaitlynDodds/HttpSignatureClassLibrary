@@ -120,17 +120,11 @@ namespace http.signature
              */
 
             string signatureString = "";
-            // add request target
-            signatureString += String.Format("(request-target): {0} {1}\n", Signature.Request.Method.ToLower(), Signature.Request.Path.ToLower());
             // add each header and value in the order they appear in the HTTP request 
             foreach (string header in Signature.Request.OrderedHeaders)
             {
                 // headers must be add in value they appear in the request
                 signatureString += String.Format("{0}: ", header);
-                if (header.Equals("(request-target)"))
-                {
-                    break;
-                }
                 if (Signature.Request.Headers[header].Count > 1)
                 {
                     foreach (string value in Signature.Request.Headers[header])
