@@ -41,6 +41,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Algorithm.cs" />
+    <Compile Include="Exceptions\InvalidAlgorithmException.cs" />
     <Compile Include="Exceptions\InvalidAuthorizationHeader.cs" />
     <Compile Include="Exceptions\InvalidSignatureString.cs" />
     <Compile Include="Parser.cs" />
