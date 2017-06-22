@@ -1,4 +1,5 @@
-﻿using System;
+﻿using http.signature.Exceptions;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -20,7 +21,6 @@ namespace http.signature
 
         public string CommonName { get; private set; }
 
-
         public static Algorithm Get(string name)
         {
             // given a name, fetch back the correct algorithm (or throw error)
@@ -28,7 +28,7 @@ namespace http.signature
 
             if (algorithm == null)
             {
-                // FIXME: kzd -> throw, algorithm not found error
+                throw new InvalidAlgorithmException("Algorithm alias not found, Algorithm cannot be null");
             }
             return algorithm;
         }
