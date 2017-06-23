@@ -1,7 +1,7 @@
-#**Http Signature Library**  
+# **Http Signature Library**  
 
 
-####**Signing Http Signatures**
+#### **Signing Http Signatures**
 This library is intended to be used as a means of authenticating the sender of an HTTP request, as well as verifying it's integrity. 
 
 The library is written in C# and is intended to be used in conjuction with the `System.Net.Http` suite of classes.
@@ -35,27 +35,26 @@ The client application will need to take four steps before it is ready to send i
 **You should now be able to send your request**
 
 
-###**The Verification Process - Server Side**
+### **The Verification Process - Server Side**
 The purpose of the verification process is to assert the integrity of the data send in the http request. The http request should include an Authorization header with a 'Signature' scheme and a parameter value that resembles this:
 
 > keyId="rsa-key-1",algorithm="rsa-sha256",headers="(request-target) host date digest  content-length",signature="npbiWEI562rJYX80tHJhChTtMM+F5ncvR6nLSncrb34=" 
 
-There are several key value pairs listed in this string, each has a very important purpose to the validation of the Authorization header. 
+There are several key value pairs listed in this string, each is required in the Authorization paramter string. 
 
-The key-id tells the server/verifying agent which secret key they should use to hash the http request that it has just received. 
+The *key-id* tells the server/verifying agent which secret key they should use to hash the http request that it has just received. 
 
-The algorithm indicates which hashing algorithm the client used to hash the request before they sent it. 
+The *algorithm* indicates which hashing algorithm the client used to hash the request before they sent it. 
 
-The headers list lists each of the request headers that were included in the hashing of the request, in the order that they were used. 
+The *headers* list lists each of the request headers that were included in the hashing of the request, in the order that they were used. 
 
-The signature holds the base64 encoded, hashed value of the original http request that the client generated. 
+The *signature* holds the base64 encoded, hashed value of the original http request that the client generated. 
 
 The server/verifying agent will repeat the process of hashing the http request that it received and will generate a base64 encoded, hashed value based on the information provided in this Authorization header parameter. The newly hashed string will then be compared to the signature value that was passed in the Authorization parameter. If the two match, you know that the http request was not tampered with. If they don't match up, something was altered during the transport of the http request and that request cannot be trusted. 
 
 In the event that the http request is unable to be verified, the server/verifying agent should respond with a 401 Unauthorized response.
 
-
-How to Verify a Request
+#### **How to Verify a Request**
 
 The HttpSignature library was written with the expectation that you will be using the System.Net.Http.HttpClient suite of classes. The verification process assumes that you are receiving http requests as HttpRequestMessages. 
 
@@ -77,5 +76,4 @@ There are four steps to the verification process:
 
     `signer.Verify(encodedSignature);`
 
-If the call to Verify returns true, the two hashed signature matched and the request can be verified. 
-If the call to Verify returns false, the two hashed signatures did not match, so send back a 401.
+If the call to Verify returns **true**, the two hashed signature matched and the request can be verified. If the call to Verify returns **false**, the two hashed signatures did not match, so send back a 401.
