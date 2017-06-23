@@ -8,7 +8,7 @@ The library is written in C# and is intended to be used in conjuction with the `
 
 For more information on the practice and process of [Signing Http Messages](https://datatracker.ietf.org/doc/draft-cavage-http-signatures/)... 
 
-####**How to Sign an Http Signature - Client Application**
+#### **How to Sign an Http Signature - Client Application**
 
 When generating your request, you must include at least a **Date** header and a **Digest** header. The **Date** header should be formatted as *'Tue, 07 Jun 2014 20:51:35 GMT'*. These headers should be added to your `HttpRequestMessage` before it is used to generate a signature. 
 
